@@ -62,7 +62,7 @@ body{padding-bottom:env(safe-area-inset-bottom,0px)!important}
 <div class="panel"><h2>Number cards in the selected hand</h2>
 <div class="nums"><button onclick="addScore(0)">0</button><button onclick="addScore(1)">1</button><button onclick="addScore(2)">2</button><button onclick="addScore(3)">3</button><button onclick="addScore(4)">4</button><button onclick="addScore(5)">5</button><button onclick="addScore(6)">6</button><button onclick="addScore(7)">7</button><button onclick="addScore(8)">8</button><button onclick="addScore(9)">9</button></div></div>
 
-<div class="panel"><div class="round">Selected hand: <span id="round">0</span></div><div id="lastCard, scoringMode" style="text-align:center;color:#aaa;font-size:14px;font-weight:800;margin-top:4px;min-height:20px">Last added: —</div>
+<div class="panel"><div class="round">Selected hand: <span id="round">0</span></div><div id="lastCard" style="text-align:center;color:#aaa;font-size:14px;font-weight:800;margin-top:4px;min-height:20px">Last added: —</div>
 <div class="roundBtns"><button onclick="undo()">↩ Undo</button><button onclick="clearRound()">Clear</button></div>
 <button class="finish" onclick="finishHand()">✓ ADD HAND</button><button class="finish" style="margin-top:8px;background:#eee" onclick="finishRound()">✓ FINISH ROUND</button></div>
 
@@ -84,7 +84,7 @@ function renderPlayers(){
     ${isWinner
       ? '<button class="select" disabled>ROUND WINNER • 0 PTS</button>'
       : `<button class="select select-winner-btn" data-player="${i}" style="margin-bottom:6px">SELECT WINNER</button>
-         <button class="select score-hand-btn" data-player="${i}" ${scored?"disabled":""}>${scored?"HAND SCORED ✓":"SCORE THIS HAND"}</button>`}
+         <button class="select score-hand-btn" data-player="${i}" ${scored?"disabled":""}>${scored?(scoringMode==="official"?"HAND RECORDED ✓":"HAND SCORED ✓"):"SCORE THIS HAND"}</button>`}
    </div>`;
  }).join("");
  el.querySelectorAll(".remove-btn").forEach(b=>b.addEventListener("click",()=>removePlayer(Number(b.dataset.player))));
@@ -92,28 +92,28 @@ function renderPlayers(){
  el.querySelectorAll(".score-hand-btn").forEach(b=>b.addEventListener("click",()=>selectScoredPlayer(Number(b.dataset.player))));
  el.querySelectorAll("input[data-name]").forEach(x=>{
   x.addEventListener("change",e=>{
-    const i=Number(e.target.dataset.name);
-    players[i].name=e.target.value || ("P"+(i+1));
-    renderAll();
+   const i=Number(e.target.dataset.name);
+   players[i].name=e.target.value||("P"+(i+1));
+   renderAll();
   });
   x.addEventListener("keydown",e=>{
-    if(e.key==="Enter"){
-      e.preventDefault();
-      const i=Number(e.target.dataset.name);
-      players[i].name=e.target.value || ("P"+(i+1));
-      const inputs=[...document.querySelectorAll('input[data-name]')];
-      const pos=inputs.indexOf(e.target);
-      if(pos>=0 && pos<inputs.length-1){
-        renderPlayers();
-        const next=document.querySelector(`input[data-name="${i+1}"]`);
-        if(next){next.focus();next.select();}
-      }else{
-        e.target.blur();
-        renderAll();
-      }
+   if(e.key==="Enter"){
+    e.preventDefault();
+    const i=Number(e.target.dataset.name);
+    players[i].name=e.target.value||("P"+(i+1));
+    const inputs=[...document.querySelectorAll('input[data-name]')];
+    const pos=inputs.indexOf(e.target);
+    if(pos>=0 && pos<inputs.length-1){
+     renderPlayers();
+     const next=document.querySelector(`input[data-name="${i+1}"]`);
+     if(next){next.focus();next.select();}
+    }else{
+     e.target.blur();
+     renderAll();
     }
+   }
   });
-});
+ });
 }
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]))}
 function addPlayer(){if(players.length<10){players.push({name:"P"+(players.length+1),score:0});renderPlayers()}}
@@ -122,7 +122,7 @@ function selectWinner(i){
  winner=i;
  round=0;
  stack=[];
- lastCard, scoringMode="—";
+ lastCard="—";
  const firstOpponent=players.findIndex((p,index)=>index!==winner && roundHands[index]===undefined);
  selectedPlayer=firstOpponent>=0 ? firstOpponent : null;
  document.getElementById("status").textContent=selectedPlayer!==null
@@ -138,7 +138,7 @@ function selectScoredPlayer(i){
  selectedPlayer=i;
  round=0;
  stack=[];
- lastCard, scoringMode="—";
+ lastCard="—";
  document.getElementById("status").textContent="Adding cards to "+players[i].name+"'s hand";
  updateRound();
  renderAll();
@@ -168,26 +168,20 @@ function renderCards(){
  });
 }
 function addCard(v,name){
- if(selectedPlayer===null){
-   alert("Select SCORE THIS HAND for a player first.");
-   return;
- }
- round += v;
- stack.push({value:v,label:name+" (+"+v+")"});
- lastCard, scoringMode=name+" (+"+v+")";
- updateRound();
- renderPlayers();
+ if(selectedPlayer===null){alert("Select SCORE THIS HAND for a player first.");return}
+ round+=v;stack.push({value:v,label:name+" (+"+v+")"});lastCard=name+" (+"+v+")";
+ updateRound();renderPlayers();
 }
 function addScore(v){
  if(selectedPlayer===null){alert("Select SCORE THIS HAND for a player first.");return}
- round+=v;
- stack.push({value:v,label:"Number "+v+" (+"+v+")"});
- lastCard, scoringMode="Number "+v+" (+"+v+")";
+ round+=v;stack.push({value:v,label:"Number "+v+" (+"+v+")"});lastCard="Number "+v+" (+"+v+")";
  updateRound();renderPlayers();
 }
-function undo(){if(stack.length){stack.pop();round=stack.reduce((s,x)=>s+x.value,0);lastCard, scoringMode=stack.length?stack[stack.length-1].label:"—";updateRound()}}
-function clearRound(){round=0;stack=[];lastCard, scoringMode="—";updateRound()}
-function updateRound(){document.getElementById("round").textContent=round;document.getElementById("lastCard, scoringMode").textContent="Last added: "+lastCard, scoringMode}
+function undo(){
+ if(stack.length){stack.pop();round=stack.reduce((s,x)=>s+x.value,0);lastCard=stack.length?stack[stack.length-1].label:"—";updateRound();renderPlayers()}
+}
+function clearRound(){round=0;stack=[];lastCard="—";updateRound()}
+function updateRound(){document.getElementById("round").textContent=round;document.getElementById("lastCard").textContent="Last added: "+lastCard}
 function finishHand(){
  if(selectedPlayer===null){alert("Select a player first.");return}
  if(!round){alert("Add at least one card or number first.");return}
@@ -278,7 +272,7 @@ renderCards();renderAll();
  function save(){try{localStorage.setItem(KEY,JSON.stringify({players,winner,selectedPlayer,side,round,stack,history,roundHands,lastCard,scoringMode}))}catch(e){}}
  try{
   const s=JSON.parse(localStorage.getItem(KEY)||"null");
-  if(s){if(Array.isArray(s.players))players=s.players;winner=s.winner??null;selectedPlayer=s.selectedPlayer??null;side=s.side||"light";round=Number(s.round)||0;stack=Array.isArray(s.stack)?s.stack:[];history=Array.isArray(s.history)?s.history:[];roundHands=s.roundHands||{};lastCard=s.lastCard||"—";scoringMode=s.scoringMode||"official";}
+  if(s){if(Array.isArray(s.players))players=s.players;winner=s.winner??null;selectedPlayer=s.selectedPlayer??null;side=s.side||"light";round=Number(s.round)||0;stack=Array.isArray(s.stack)?s.stack:[];history=Array.isArray(s.history)?s.history:[];roundHands=s.roundHands||{};lastCard=s.lastCard||"—";scoringMode=s.scoringMode||"official";scoringMode=s.scoringMode||"official";}
  }catch(e){}
  const oldR=window.renderAll;
  if(oldR)window.renderAll=function(){oldR();save()};
