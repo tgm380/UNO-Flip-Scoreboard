@@ -37,6 +37,10 @@ h1{text-align:center;margin:3px 0;font-size:29px}.sub{text-align:center;color:#a
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="UNO FLIP!">
 <link rel="apple-touch-icon" href="icon-192.png">
+<style>
+html,body{padding-top:env(safe-area-inset-top,0px)!important}
+body{padding-bottom:env(safe-area-inset-bottom,0px)!important}
+</style>
 </head>
 <body>
 <div class="app">
@@ -46,7 +50,7 @@ h1{text-align:center;margin:3px 0;font-size:29px}.sub{text-align:center;color:#a
 <div class="status" id="status">Select the round winner</div><div id="scoringModeToggle" style="display:flex;justify-content:center;gap:8px;margin:8px 0 12px;flex-wrap:wrap">
       <button id="officialModeBtn" type="button" style="padding:9px 16px;border-radius:999px;border:1px solid #666;font-weight:900;cursor:pointer">Official scoring</button>
       <button id="alternativeModeBtn" type="button" style="padding:9px 16px;border-radius:999px;border:1px solid #666;font-weight:900;cursor:pointer">Alternative scoring</button>
-    </div><div id="modeDescription" style="text-align:center;font-size:12px;color:#999;margin-bottom:4px">Official: winner receives all losing-hand points. Alternative: each player keeps the points from their own hand.</div><div id="selectedPlayerDisplay" style="text-align:center;font-weight:900;color:#ffd400;margin:4px 0 10px">No player selected</div>
+    </div><div id="modeDescription" style="text-align:center;font-size:12px;color:#999;margin-bottom:4px">Official: the winner receives all losing-hand points. Alternative: each player keeps the points from their own hand.</div><div id="selectedPlayerDisplay" style="text-align:center;font-weight:900;color:#ffd400;margin:4px 0 10px">No player selected</div>
 
 <div class="panel"><h2>Which side ended the round?</h2>
 <div class="side"><button id="light" class="active" onclick="setSide('light')">☀️ LIGHT</button><button id="dark" onclick="setSide('dark')">🌙 DARK</button></div></div>
@@ -80,13 +84,30 @@ function renderPlayers(){
     ${isWinner
       ? '<button class="select" disabled>ROUND WINNER • 0 PTS</button>'
       : `<button class="select select-winner-btn" data-player="${i}" style="margin-bottom:6px">SELECT WINNER</button>
-         <button class="select score-hand-btn" data-player="${i}" ${scored?"disabled":""}>${scored?"HAND SCORED ✓":"SCORE THIS HAND"}</button>`}
+         <button class="select score-hand-btn" data-player="${i}" ${scored?"disabled":""}>${scored ? (scoringMode==="official" ? "HAND RECORDED ✓" : "HAND SCORED ✓") : "SCORE THIS HAND"}</button>`}
    </div>`;
  }).join("");
  el.querySelectorAll(".remove-btn").forEach(b=>b.addEventListener("click",()=>removePlayer(Number(b.dataset.player))));
  el.querySelectorAll(".select-winner-btn").forEach(b=>b.addEventListener("click",()=>selectWinner(Number(b.dataset.player))));
  el.querySelectorAll(".score-hand-btn").forEach(b=>b.addEventListener("click",()=>selectScoredPlayer(Number(b.dataset.player))));
- el.querySelectorAll("input[data-name]").forEach(x=>x.addEventListener("change",e=>{players[Number(e.target.dataset.name)].name=e.target.value;renderAll()}));
+ el.querySelectorAll("input[data-name]").forEach(x=>{
+  x.addEventListener("change",e=>{players[Number(e.target.dataset.name)].name=e.target.value;renderAll()});
+  x.addEventListener("keydown",e=>{
+    if(e.key==="Enter"){
+      e.preventDefault();
+      const inputs=[...document.querySelectorAll('input[data-name]')];
+      const pos=inputs.indexOf(e.target);
+      players[Number(e.target.dataset.name)].name=e.target.value || ("P"+(Number(e.target.dataset.name)+1));
+      if(pos>=0 && pos<inputs.length-1){
+        inputs[pos+1].focus();
+        inputs[pos+1].select();
+      }else{
+        e.target.blur();
+        renderAll();
+      }
+    }
+  });
+});
 }
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]))}
 function addPlayer(){if(players.length<10){players.push({name:"P"+(players.length+1),score:0});renderPlayers()}}
@@ -162,25 +183,31 @@ function undo(){if(stack.length){stack.pop();round=stack.reduce((s,x)=>s+x.value
 function clearRound(){round=0;stack=[];lastCard, scoringMode="—";updateRound()}
 function updateRound(){document.getElementById("round").textContent=round;document.getElementById("lastCard, scoringMode").textContent="Last added: "+lastCard, scoringMode}
 function finishHand(){
- if(selectedPlayer===null){alert("Select SCORE THIS HAND for a player first.");return}
+ if(selectedPlayer===null){alert("Select a player first.");return}
  if(!round){alert("Add at least one card or number first.");return}
+
  const i=selectedPlayer;
  const points=round;
+ roundHands[i]=points;
 
+ // Official scoring: losing players do NOT receive these points.
+ // Alternative scoring: each losing player keeps their own hand points.
  if(scoringMode==="alternative"){
    players[i].score += points;
  }
- roundHands[i]=points;
 
  const next=players.findIndex((p,index)=>index!==winner && roundHands[index]===undefined);
- round=0;stack=[];lastCard="—";
+ round=0; stack=[]; lastCard="—";
 
  if(next>=0){
    selectedPlayer=next;
    document.getElementById("status").textContent="Adding cards to "+players[next].name+"'s hand";
  }else{
    selectedPlayer=null;
-   document.getElementById("status").textContent="All losing players scored. Finish the round.";
+   document.getElementById("status").textContent=
+     scoringMode==="official"
+       ? "All losing hands recorded. Finish the round to award the winner."
+       : "All losing players scored. Finish the round.";
  }
  renderAll();
 }
@@ -204,7 +231,7 @@ function finishRound(){
  const low=Math.min(...players.map(p=>p.score));
  const lowest=players.filter(p=>p.score===low);
 
- winner=null;selectedPlayer=null;roundHands={};clearRound();renderAll();
+ winner=null;selectedPlayer=null;roundHands={};side="light";clearRound();renderAll();
 
  document.getElementById("status").textContent=reached
    ? (lowest.length===1
@@ -235,7 +262,7 @@ function updateModeUI(){
   a.style.background=scoringMode==="alternative"?"#ffd400":"transparent";
   a.style.color=scoringMode==="alternative"?"#111":"inherit";
 }
-document.addEventListener("DOMContentLoaded",()=>{
+document.addEventListener("DOMContentLoaded",()=>{scoringMode=scoringMode||"official";
   document.getElementById("officialModeBtn")?.addEventListener("click",()=>setScoringMode("official"));
   document.getElementById("alternativeModeBtn")?.addEventListener("click",()=>setScoringMode("alternative"));
   updateModeUI();
@@ -248,7 +275,7 @@ function renderAll(){
  const el=document.getElementById("selectedPlayerDisplay");
  if(el) el.textContent=selectedPlayer===null ? "No player selected" : "Adding to: "+players[selectedPlayer].name;
 }
-function newGame(){if(confirm("Start a new game and clear all scores?")){players.forEach(p=>p.score=0);winner=null;selectedPlayer=null;history=[];roundHands={};clearRound();document.getElementById("status").textContent="Select the round winner";renderAll()}}
+function newGame(){scoringMode="official";if(confirm("Start a new game and clear all scores?")){players.forEach(p=>p.score=0);winner=null;selectedPlayer=null;history=[];roundHands={};clearRound();document.getElementById("status").textContent="Select the round winner";renderAll()}}
 renderCards();renderAll();
 </script>
 
