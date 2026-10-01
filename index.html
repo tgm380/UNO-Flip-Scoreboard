@@ -44,7 +44,7 @@ body{padding-bottom:env(safe-area-inset-bottom,0px)!important}
 </head>
 <body>
 <div class="app">
-<h1>🃏 UNO FLIP!</h1><div class="sub">2–10 player scoreboard • Alternative scoring</div>
+<h1>🃏 UNO FLIP!</h1><div id="scoringSubtitle" style="font-size:13px;text-align:center;opacity:.8;margin:4px 0 10px">Official scoring: the winner receives all losing-hand points.</div><div class="sub">2–10 player scoreboard • Alternative scoring</div>
 <div class="controls"><button class="add" onclick="addPlayer()">＋ Add player</button><button class="new" onclick="newGame()">New game</button></div>
 <div class="players" id="players"></div>
 <div class="status" id="status">Select the round winner</div><div id="scoringModeToggle" style="display:flex;justify-content:center;gap:8px;margin:8px 0 12px;flex-wrap:wrap">
@@ -247,6 +247,11 @@ function setScoringMode(mode){
  renderAll();
 }
 function updateModeUI(){
+ const sub=document.getElementById("scoringSubtitle");
+ if(sub) sub.textContent=scoringMode==="official"
+   ? "Official scoring: the winner receives all losing-hand points."
+   : "Alternative scoring: each player keeps the points from their own hand.";
+
  const o=document.getElementById("officialModeBtn"), a=document.getElementById("alternativeModeBtn");
  if(!o||!a) return;
  o.style.background=scoringMode==="official"?"#ffd400":"transparent";
