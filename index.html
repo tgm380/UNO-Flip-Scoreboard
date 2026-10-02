@@ -44,7 +44,7 @@ body{padding-bottom:env(safe-area-inset-bottom,0px)!important}
 </head>
 <body>
 <div class="app">
-<h1>🃏 UNO FLIP!</h1><div id="scoringSubtitle" style="font-size:13px;text-align:center;opacity:.8;margin:4px 0 10px">Official scoring: the winner receives all losing-hand points.</div><div class="sub">2–10 player scoreboard • Alternative scoring</div>
+<h1>🃏 UNO FLIP!</h1><div id="scoringSubtitle" style="font-size:13px;text-align:center;opacity:.8;margin:4px 0 10px">Official scoring: the winner receives all losing-hand points.</div><div class="sub">2–10 player scoreboard</div>
 <div class="controls"><button class="add" onclick="addPlayer()">＋ Add player</button><button class="new" onclick="newGame()">New game</button></div>
 <div class="players" id="players"></div>
 <div class="status" id="status">Select the round winner</div><div id="scoringModeToggle" style="display:flex;justify-content:center;gap:8px;margin:8px 0 12px;flex-wrap:wrap">
@@ -57,7 +57,7 @@ body{padding-bottom:env(safe-area-inset-bottom,0px)!important}
 
 <div class="panel"><h2>Score each losing player's hand</h2>
 <div class="cards" id="cards"></div>
-<div class="note">Alternative scoring: the round winner scores 0. Each other player scores the points left in their own hand. When any player reaches 500, the player with the lowest total score wins. Select an opponent, then tap their cards.</div></div>
+<div class="note" id="modeNote">Official scoring: the round winner receives the total points in the other players’ hands. First to 500 wins.</div></div>
 
 <div class="panel"><h2>Number cards in the selected hand</h2>
 <div class="nums"><button onclick="addScore(0)">0</button><button onclick="addScore(1)">1</button><button onclick="addScore(2)">2</button><button onclick="addScore(3)">3</button><button onclick="addScore(4)">4</button><button onclick="addScore(5)">5</button><button onclick="addScore(6)">6</button><button onclick="addScore(7)">7</button><button onclick="addScore(8)">8</button><button onclick="addScore(9)">9</button></div></div>
@@ -116,20 +116,22 @@ function renderPlayers(){
  });
 }
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]))}
-function addPlayer(){if(players.length<10){players.push({name:"P"+(players.length+1),score:0});renderPlayers()}}
-function removePlayer(i){if(players.length<=2)return;if(confirm("Remove "+players[i].name+"?")){players.splice(i,1);if(winner===i)winner=null;else if(winner>i)winner--;if(selectedPlayer===i)selectedPlayer=null;else if(selectedPlayer>i)selectedPlayer--;delete roundHands[i];renderAll()}}
+function addPlayer(){
+ if(winner!==null || selectedPlayer!==null || Object.keys(roundHands).length || round){alert("Finish the current round before adding a player.");return}
+ if(players.length<10){players.push({name:"P"+(players.length+1),score:0});renderAll()}
+}
+function removePlayer(i){
+ if(players.length<=2)return;
+ if(winner!==null || selectedPlayer!==null || Object.keys(roundHands).length || round){alert("Finish the current round before removing a player.");return}
+ if(confirm("Remove "+players[i].name+"?")){players.splice(i,1);renderAll()}
+}
 function selectWinner(i){
- winner=i;
- round=0;
- stack=[];
- lastCard="—";
- const firstOpponent=players.findIndex((p,index)=>index!==winner && roundHands[index]===undefined);
+ if(winner!==null || selectedPlayer!==null || Object.keys(roundHands).length || round){alert("Finish or clear the current round before changing the winner.");return}
+ winner=i;round=0;stack=[];lastCard="—";
+ const firstOpponent=players.findIndex((p,index)=>index!==winner);
  selectedPlayer=firstOpponent>=0 ? firstOpponent : null;
- document.getElementById("status").textContent=selectedPlayer!==null
-   ? "Adding cards to "+players[selectedPlayer].name+"'s hand"
-   : "All hands scored. Finish the round.";
- updateRound();
- renderAll();
+ document.getElementById("status").textContent=selectedPlayer!==null ? "Adding cards to "+players[selectedPlayer].name+"'s hand" : "All hands scored. Finish the round.";
+ updateRound();renderAll();
 }
 function selectScoredPlayer(i){
  if(winner===null){alert("Select the round winner first.");return}
@@ -184,7 +186,7 @@ function clearRound(){round=0;stack=[];lastCard="—";updateRound()}
 function updateRound(){document.getElementById("round").textContent=round;document.getElementById("lastCard").textContent="Last added: "+lastCard}
 function finishHand(){
  if(selectedPlayer===null){alert("Select a player first.");return}
- if(!round){alert("Add at least one card or number first.");return}
+ if(stack.length===0){alert("Add at least one card or number first.");return}
  const i=selectedPlayer;
  const points=round;
  roundHands[i]=points;
@@ -212,78 +214,73 @@ function finishRound(){
  const opponents=players.map((p,i)=>i).filter(i=>i!==winner);
  const missing=opponents.filter(i=>roundHands[i]===undefined);
  if(missing.length){alert("Score every losing player's hand before finishing the round.");return}
-
+ const winnerIndex=winner;
+ const winnerName=players[winnerIndex].name;
+ const roundSnapshot=opponents.map(i=>({name:players[i].name,points:Number(roundHands[i])||0}));
  if(scoringMode==="official"){
-   const total=opponents.reduce((sum,i)=>sum+(Number(roundHands[i])||0),0);
-   players[winner].score += total;
- }
-
- history.push({winner,points:{...roundHands},side,mode:scoringMode});
- const reached=players.some(p=>p.score>=500);
- const low=Math.min(...players.map(p=>p.score));
- const lowest=players.filter(p=>p.score===low);
-
+   const total=roundSnapshot.reduce((sum,r)=>sum+r.points,0);
+   players[winnerIndex].score += total;
+ } 
+ const gameWinner=scoringMode==="official"
+   ? (players[winnerIndex].score>=500 ? winnerIndex : null)
+   : (players.some(p=>p.score>=500) ? players.reduce((best,p,i)=>p.score<players[best].score?i:best,0) : null);
+ history.push({winnerName,points:roundSnapshot,side,mode:scoringMode});
  winner=null;selectedPlayer=null;roundHands={};side="light";clearRound();renderAll();
-
- document.getElementById("status").textContent=reached
-  ? (lowest.length===1
-    ? "🏆 "+lowest[0].name+" wins under "+(scoringMode==="official"?"official":"alternative")+" scoring!"
-    : "🏆 Tie for lowest score: "+lowest.map(p=>p.name).join(", "))
-  : "Select the next round winner";
+ if(gameWinner!==null){document.getElementById("status").textContent="🏆 "+players[gameWinner].name+" wins!"}
+ else document.getElementById("status").textContent="Select the next round winner";
 }
 function renderHistory(){
  if(!history.length){document.getElementById("history").innerHTML="No completed rounds yet.";return}
- document.getElementById("history").innerHTML=history.map((r,i)=>{const scores=Object.entries(r.points).map(([idx,pts])=>`${escapeHtml(players[idx]?.name||"Player")} +${pts}`).join(" • ");return `<div class="row"><b>R${i+1}</b><span>${escapeHtml(players[r.winner]?.name||"Player")} won</span><span>${scores||"No points"}</span></div>`}).join("")
+ document.getElementById("history").innerHTML=history.map((r,i)=>{
+   const scores=(r.points||[]).map(x=>`${escapeHtml(x.name)} +${x.points}`).join(" • ");
+   return `<div class="row"><b>R${i+1}</b><span>${escapeHtml(r.winnerName||"Player")} won</span><span>${scores||"No points"}</span></div>`;
+ }).join("");
 }
 
 function setScoringMode(mode){
- if(mode!=="official" && mode!=="alternative") return;
- if(winner!==null || selectedPlayer!==null || Object.keys(roundHands).length){
-   if(!confirm("Changing scoring mode will clear the current round. Continue?")) return;
-   winner=null;selectedPlayer=null;round=0;stack=[];roundHands={};lastCard="—";
- }
- scoringMode=mode;
- updateModeUI();
- renderAll();
+ if(mode!=="official" && mode!=="alternative")return;
+ if(winner!==null || selectedPlayer!==null || Object.keys(roundHands).length || round){alert("Finish the current round before changing scoring mode.");return}
+ scoringMode=mode;updateModeUI();renderAll();
 }
 function updateModeUI(){
  const sub=document.getElementById("scoringSubtitle");
- if(sub) sub.textContent=scoringMode==="official"
-   ? "Official scoring: the winner receives all losing-hand points."
-   : "Alternative scoring: each player keeps the points from their own hand.";
-
- const o=document.getElementById("officialModeBtn"), a=document.getElementById("alternativeModeBtn");
- if(!o||!a) return;
- o.style.background=scoringMode==="official"?"#ffd400":"transparent";
- o.style.color=scoringMode==="official"?"#111":"inherit";
- a.style.background=scoringMode==="alternative"?"#ffd400":"transparent";
- a.style.color=scoringMode==="alternative"?"#111":"inherit";
+ const note=document.getElementById("modeNote");
+ if(sub)sub.textContent=scoringMode==="official"?"Official scoring: the winner receives all losing-hand points.":"Alternative scoring: each player keeps the points from their own hand.";
+ if(note)note.textContent=scoringMode==="official"?"Official scoring: the round winner receives the total points in the other players’ hands. First to 500 wins.":"Alternative scoring: each losing player scores their own hand. When any player reaches 500, the lowest total score wins.";
+ const o=document.getElementById("officialModeBtn"),a=document.getElementById("alternativeModeBtn");
+ if(!o||!a)return;o.style.background=scoringMode==="official"?"#ffd400":"transparent";o.style.color=scoringMode==="official"?"#111":"inherit";a.style.background=scoringMode==="alternative"?"#ffd400":"transparent";a.style.color=scoringMode==="alternative"?"#111":"inherit";
 }
 function renderAll(){
  renderPlayers();
  renderHistory();
  updateRound();
  updateModeUI();
+ document.getElementById("light")?.classList.toggle("active",side==="light");
+ document.getElementById("dark")?.classList.toggle("active",side==="dark");
+ renderCards();
  const el=document.getElementById("selectedPlayerDisplay");
  if(el) el.textContent=selectedPlayer===null ? "No player selected" : "Adding to: "+players[selectedPlayer].name;
 }
-function newGame(){scoringMode="official";if(confirm("Start a new game and clear all scores?")){players.forEach(p=>p.score=0);winner=null;selectedPlayer=null;history=[];roundHands={};clearRound();document.getElementById("status").textContent="Select the round winner";renderAll()}}
+function newGame(){if(confirm("Start a new game and clear all scores?")){players.forEach(p=>p.score=0);winner=null;selectedPlayer=null;history=[];roundHands={};scoringMode="official";side="light";clearRound();document.getElementById("status").textContent="Select the round winner";renderAll()}}
 renderCards();renderAll();
+document.getElementById("officialModeBtn")?.addEventListener("click",()=>setScoringMode("official"));
+document.getElementById("alternativeModeBtn")?.addEventListener("click",()=>setScoringMode("alternative"));
 </script>
 
 <script>
 (function(){
- const KEY="unoFlipGame_v1";
+ const KEY="unoFlipGame_v2";
  function save(){try{localStorage.setItem(KEY,JSON.stringify({players,winner,selectedPlayer,side,round,stack,history,roundHands,lastCard,scoringMode}))}catch(e){}}
  try{
-  const s=JSON.parse(localStorage.getItem(KEY)||"null");
-  if(s){if(Array.isArray(s.players))players=s.players;winner=s.winner??null;selectedPlayer=s.selectedPlayer??null;side=s.side||"light";round=Number(s.round)||0;stack=Array.isArray(s.stack)?s.stack:[];history=Array.isArray(s.history)?s.history:[];roundHands=s.roundHands||{};lastCard=s.lastCard||"—";scoringMode=s.scoringMode||"official";scoringMode=s.scoringMode||"official";}
+  const s=JSON.parse(localStorage.getItem(KEY)||localStorage.getItem("unoFlipGame_v1")||"null");
+  if(s){if(Array.isArray(s.players))players=s.players;winner=s.winner??null;selectedPlayer=s.selectedPlayer??null;side=s.side||"light";round=Number(s.round)||0;stack=Array.isArray(s.stack)?s.stack:[];history=Array.isArray(s.history)?s.history:[];roundHands=s.roundHands||{};lastCard=s.lastCard||"—";scoringMode=s.scoringMode||"official";}
  }catch(e){}
  const oldR=window.renderAll;
  if(oldR)window.renderAll=function(){oldR();save()};
  const oldU=window.updateRound;
  if(oldU)window.updateRound=function(){oldU();save()};
  addEventListener("pagehide",save); addEventListener("beforeunload",save);
+ renderAll();
 })();
 if("serviceWorker" in navigator) addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
 </script>
