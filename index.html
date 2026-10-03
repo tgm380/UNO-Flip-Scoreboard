@@ -84,25 +84,15 @@ function renderPlayers(){
     <div class="score" data-official-player="${i}">${p.score}${selectedPlayer===i && round ? ` <span style="font-size:20px;color:#777">(+${round})</span>` : ""}</div>
     ${isWinner
       ? '<button class="select" disabled>ROUND WINNER • 0 PTS</button>'
-      : (scoringMode==="official"
-        ? (scored
-          ? '<button class="select" disabled>HAND RECORDED ✓</button>'
-          : '<button class="select" disabled>OFFICIAL HAND</button>')
-        : `<button class="select select-winner-btn" data-player="${i}" style="margin-bottom:6px">SELECT WINNER</button>
-           <button class="select score-hand-btn" data-player="${i}" ${scored?"disabled":""}>${scored?"HAND SCORED ✓":"SCORE THIS HAND"}</button>`)}
+      : `<button class="select select-winner-btn" data-player="${i}" style="margin-bottom:6px">SELECT WINNER</button>
+         ${scoringMode==="alternative"
+           ? `<button class="select score-hand-btn" data-player="${i}" ${scored?"disabled":""}>${scored?"HAND SCORED ✓":"SCORE THIS HAND"}</button>`
+           : (scored ? '<button class="select" disabled>HAND RECORDED ✓</button>' : '')}`}
    </div>`;
  }).join("");
  el.querySelectorAll(".remove-btn").forEach(b=>b.addEventListener("click",()=>removePlayer(Number(b.dataset.player))));
  el.querySelectorAll(".select-winner-btn").forEach(b=>b.addEventListener("click",()=>selectWinner(Number(b.dataset.player))));
  el.querySelectorAll(".score-hand-btn").forEach(b=>b.addEventListener("click",()=>selectScoredPlayer(Number(b.dataset.player))));
- el.querySelectorAll('[data-official-player]').forEach(b=>{
-  b.addEventListener("click",()=>{
-   if(scoringMode==="official" && winner!==null && Number(b.dataset.officialPlayer)!==winner){
-    selectScoredPlayer(Number(b.dataset.officialPlayer));
-   }
-  });
- });
-
  el.querySelectorAll("input[data-name]").forEach(x=>{
   x.addEventListener("change",e=>{
    const i=Number(e.target.dataset.name);
@@ -124,6 +114,13 @@ function renderPlayers(){
      e.target.blur();
      renderAll();
     }
+   }
+  });
+ });
+ el.querySelectorAll('[data-official-player]').forEach(b=>{
+  b.addEventListener("click",()=>{
+   if(scoringMode==="official" && winner!==null && Number(b.dataset.officialPlayer)!==winner){
+    selectScoredPlayer(Number(b.dataset.officialPlayer));
    }
   });
  });
